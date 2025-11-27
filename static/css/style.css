@@ -1,0 +1,29 @@
+body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #f7f7f8; color: #222; }
+.app-header { display:flex; justify-content:space-between; align-items:center; padding: .8rem 1.2rem; background:#0d47a1; color:#fff; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.app-header .title { font-weight: 700; letter-spacing: .3px; }
+.app-header .status { font-size: .9rem; opacity: .9; }
+.container { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
+.card { background:#fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); padding: 1rem; margin-bottom: 1rem; }
+
+#controls .grid { display:grid; grid-template-columns: 1fr 1fr auto; gap: .8rem; align-items:end; }
+.field label { display:block; font-size:.85rem; color:#444; margin-bottom:.3rem; }
+select { width: 100%; padding: .5rem .6rem; border-radius: 8px; border:1px solid #cfd8dc; background:#fafafa; }
+select:focus { outline: none; border-color:#0d47a1; box-shadow: 0 0 0 3px rgba(13,71,161,0.15); }
+.actions { display:flex; gap:.6rem; align-items:center; }
+.btn { padding: .55rem .9rem; border-radius: 8px; border:1px solid #cfd8dc; background:#eceff1; color:#0d47a1; cursor:pointer; }
+.btn:hover { background:#e0e6eb; }
+.btn.primary { background:#1976d2; border-color:#1976d2; color:#fff; }
+.btn.primary:hover { background:#1565c0; }
+
+#result h3 { margin:0 0 .4rem 0; }
+#result ol { margin:0; padding-left: 1rem; }
+
+.map-container { position: relative; width: 950px; height: 1000px; border-radius: 10px; overflow:hidden; }
+.map-container img { position: absolute; left:0; top:0; z-index: 0; width: 950px; height: 1000px; }
+.map-container canvas { position: absolute; left:0; top:0; z-index: 1; background: transparent; border: none; }
+.legend { display:flex; gap:1rem; align-items:center; margin-top: .8rem; font-size:.9rem; color:#444; }
+.legend .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+.legend .dot.black { background:#000; }
+.legend .line { display:inline-block; width: 26px; height:3px; border-radius:3px; }
+.legend .line.red { background:#d32f2f; }
+.legend .line.green { background:#2a9d8f; }
