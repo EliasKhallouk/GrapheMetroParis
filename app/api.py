@@ -12,11 +12,16 @@ def index():
 
 @app.route('/stations')
 def stations():
+    # compute lines per station name
+    name_to_lines = {}
+    for st in graph.stations.values():
+        name_to_lines.setdefault(st.name, set()).add(str(st.line))
     data = [
         {
             'id': st.id,
             'name': st.name,
             'line': st.line,
+            'lines_at_name': sorted(list(name_to_lines.get(st.name, []))),
             'terminus': st.terminus,
             'branch': st.branch,
             'x': st.x,
@@ -30,10 +35,13 @@ def station_detail(station_id: int):
     st = graph.stations.get(station_id)
     if not st:
         return jsonify({'error': 'not found'}), 404
+    # collect lines at same station name
+    lines = sorted({str(s.line) for s in graph.stations.values() if s.name == st.name})
     return jsonify({
         'id': st.id,
         'name': st.name,
         'line': st.line,
+        'lines_at_name': lines,
         'terminus': st.terminus,
         'branch': st.branch,
         'x': st.x,
@@ -65,7 +73,16 @@ def path():
         total, path_ids = graph.shortest_path(start, end)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
-    stations_path = [graph.stations[i].name for i in path_ids]
+    # include line info for each station in path
+    stations_path = []
+    for i in path_ids:
+        s = graph.stations.get(i)
+        if not s:
+            stations_path.append({'id': i, 'name': None, 'line': None, 'lines_at_name': []})
+            continue
+        # collect lines at same name
+        lines = sorted({str(ss.line) for ss in graph.stations.values() if ss.name == s.name})
+        stations_path.append({'id': s.id, 'name': s.name, 'line': s.line, 'lines_at_name': lines})
     return jsonify({'total_time_seconds': total, 'path': path_ids, 'stations': stations_path})
 
 # Simple health endpoint

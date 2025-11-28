@@ -1,52 +1,238 @@
+// Animation et chargement
+function showLoadingScreen() {
+  const loadingScreen = document.getElementById('loadingScreen');
+  if (loadingScreen) {
+    loadingScreen.style.display = 'flex';
+  }
+}
+
+function hideLoadingScreen() {
+  const loadingScreen = document.getElementById('loadingScreen');
+  if (loadingScreen) {
+    setTimeout(() => {
+      loadingScreen.style.opacity = '0';
+      setTimeout(() => {
+        loadingScreen.style.display = 'none';
+      }, 500);
+    }, 1000);
+  }
+}
+
+// Gestion des notifications
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.innerHTML = `
+    <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+    <span>${message}</span>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => notification.classList.add('show'), 100);
+  setTimeout(() => {
+    notification.classList.remove('show');
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
+
 async function loadStations() {
-  const res = await fetch('/stations');
-  const data = await res.json();
-  window.__stations = data;
-  const startSel = document.getElementById('start');
-  const endSel = document.getElementById('end');
-  data.forEach(st => {
-    const opt1 = document.createElement('option');
-    opt1.value = st.id; opt1.textContent = `${st.id} - ${st.name} (L${st.line})`;
-    startSel.appendChild(opt1);
-    const opt2 = document.createElement('option');
-    opt2.value = st.id; opt2.textContent = `${st.id} - ${st.name} (L${st.line})`;
-    endSel.appendChild(opt2);
-  });
-  drawMap();
-  // connexité
+  showLoadingScreen();
+  
   try {
-    const c = await (await fetch('/connected')).json();
-    const el = document.getElementById('connexite');
-    el.textContent = c.connected ? 'Connexe: Oui' : 'Connexe: Non';
-  } catch {}
+    const res = await fetch('/stations');
+    if (!res.ok) throw new Error('Erreur de chargement des stations');
+    
+    const data = await res.json();
+    window.__stations = data;
+    
+    const startSel = document.getElementById('start');
+    const endSel = document.getElementById('end');
+    
+    // Vider les sélecteurs
+    startSel.innerHTML = '<option value="">Choisissez votre station de départ...</option>';
+    endSel.innerHTML = '<option value="">Choisissez votre station d\'arrivée...</option>';
+    
+    // Trier les stations par nom
+    const sortedStations = data.sort((a, b) => a.name.localeCompare(b.name));
+    
+    sortedStations.forEach(st => {
+      const lineInfo = (st.lines_at_name && st.lines_at_name.length > 0) 
+        ? `${st.lines_at_name.join(', ')}` 
+        : `${st.line}`;
+      
+      const opt1 = document.createElement('option');
+      opt1.value = st.id;
+      opt1.textContent = `${st.name} (ligne ${lineInfo})`;
+      startSel.appendChild(opt1);
+      
+      const opt2 = document.createElement('option');
+      opt2.value = st.id;
+      opt2.textContent = `${st.name} (ligne ${lineInfo})`;
+      endSel.appendChild(opt2);
+    });
+    
+    await syncCanvasToImage();
+    drawMap();
+    
+    // Connexité avec animation
+    try {
+      const c = await fetch('/connected').then(res => res.json());
+      const el = document.getElementById('connexite');
+      el.innerHTML = `
+        <i class="fas ${c.connected ? 'fa-check-circle' : 'fa-times-circle'}"></i>
+        Réseau ${c.connected ? 'connexe' : 'non connexe'}
+      `;
+      el.className = `connexity-status ${c.connected ? 'connected' : 'disconnected'}`;
+    } catch (error) {
+      console.warn('Erreur lors de la vérification de connexité:', error);
+    }
+    
+    showNotification('Stations chargées avec succès !', 'success');
+  } catch (error) {
+    console.error('Erreur lors du chargement:', error);
+    showNotification('Erreur lors du chargement des stations', 'error');
+  } finally {
+    hideLoadingScreen();
+  }
 }
 
 async function computePath() {
   const start = document.getElementById('start').value;
   const end = document.getElementById('end').value;
-  if (!start || !end) return;
-  const res = await fetch(`/path?start=${start}&end=${end}`);
-  const data = await res.json();
-  const result = document.getElementById('result');
-  if (data.error) {
-    result.textContent = 'Erreur: ' + data.error;
+  const computeBtn = document.getElementById('compute');
+  
+  if (!start || !end) {
+    showNotification('Veuillez sélectionner une station de départ et d\'arrivée', 'error');
     return;
   }
-  result.innerHTML = `<h3>Chemin (${data.total_time_seconds}s)</h3><ol>` +
-    data.stations.map(n => `<li>${n}</li>`).join('') + '</ol>';
-  highlightPath(data.path);
+  
+  if (start === end) {
+    showNotification('Les stations de départ et d\'arrivée doivent être différentes', 'error');
+    return;
+  }
+  
+  // Animation de chargement
+  computeBtn.classList.add('loading');
+  computeBtn.disabled = true;
+  
+  try {
+    const res = await fetch(`/path?start=${start}&end=${end}`);
+    const data = await res.json();
+    
+    if (data.error) {
+      showNotification('Erreur: ' + data.error, 'error');
+      return;
+    }
+    
+    displayResult(data);
+    highlightPath(data.path);
+    showNotification('Itinéraire calculé avec succès !', 'success');
+    
+  } catch (error) {
+    console.error('Erreur lors du calcul:', error);
+    showNotification('Erreur lors du calcul de l\'itinéraire', 'error');
+  } finally {
+    computeBtn.classList.remove('loading');
+    computeBtn.disabled = false;
+  }
+}
+
+function displayResult(data) {
+  const resultSection = document.getElementById('result');
+  const resultContent = document.getElementById('resultContent');
+  
+  const fmt = formatDuration(data.total_time_seconds);
+  const distance = data.stations.length - 1; // Nombre de segments
+  
+  resultContent.innerHTML = `
+    <div class="journey-summary">
+      <div class="summary-item">
+        <span class="value">${fmt}</span>
+        <span class="label">Durée totale</span>
+      </div>
+      <div class="summary-item">
+        <span class="value">${distance}</span>
+        <span class="label">Stations</span>
+      </div>
+      <div class="summary-item">
+        <span class="value">${data.stations.length}</span>
+        <span class="label">Arrêts</span>
+      </div>
+    </div>
+    
+    <h4><i class="fas fa-list-ol"></i> Itinéraire détaillé</h4>
+    <ol class="stations-list">
+      ${data.stations.map((station, index) => `
+        <li>
+          <div class="station-number">${index + 1}</div>
+          <div class="station-info">
+            <div class="station-name">${station.name}</div>
+            <div class="station-lines">Ligne${station.lines_at_name.length > 1 ? 's' : ''}: ${station.lines_at_name.join(', ')}</div>
+          </div>
+        </li>
+      `).join('')}
+    </ol>
+  `;
+  
+  resultSection.style.display = 'block';
+  setTimeout(() => resultSection.scrollIntoView({ behavior: 'smooth' }), 100);
+}
+
+function hideResult() {
+  const resultSection = document.getElementById('result');
+  resultSection.style.display = 'none';
+  drawMap(); // Réinitialiser la carte
+}
+
+function formatDuration(seconds) {
+  if (typeof seconds !== 'number') seconds = Number(seconds) || 0;
+  const pad = (n) => String(n).padStart(2, '0');
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
 function drawMap() {
   const canvas = document.getElementById('map');
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle = '#000';
+  
+  // Effacer le canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
   const stations = window.__stations || [];
+  const { scaleX, scaleY } = getImageScale();
+  
+  // Dessiner les stations avec un style amélioré
   stations.forEach(st => {
     if (st.x != null && st.y != null) {
+      const dx = st.x * scaleX;
+      const dy = st.y * scaleY;
+      
+      // Ombre portée
       ctx.beginPath();
-      ctx.arc(st.x, st.y, 4, 0, Math.PI*2);
+      ctx.arc(dx + 1, dy + 1, 5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.fill();
+      
+      // Station principale
+      ctx.beginPath();
+      ctx.arc(dx, dy, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#2d3748';
+      ctx.fill();
+      
+      // Bordure blanche
+      ctx.beginPath();
+      ctx.arc(dx, dy, 4, 0, Math.PI * 2);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Point central coloré
+      ctx.beginPath();
+      ctx.arc(dx, dy, 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#667eea';
       ctx.fill();
     }
   });
@@ -54,54 +240,392 @@ function drawMap() {
 
 function highlightPath(pathIds) {
   drawMap();
+  
+  if (!pathIds || pathIds.length === 0) return;
+  
   const canvas = document.getElementById('map');
   const ctx = canvas.getContext('2d');
-  ctx.strokeStyle = 'red';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  let started = false;
-  pathIds.forEach(id => {
-    const st = window.__stations.find(s => s.id === id);
-    if (!st || st.x == null) return;
-    if (!started) { ctx.moveTo(st.x, st.y); started = true; }
-    else { ctx.lineTo(st.x, st.y); }
-  });
-  ctx.stroke();
-  // draw nodes again on top
-  pathIds.forEach(id => {
-    const st = window.__stations.find(s => s.id === id);
-    if (!st || st.x == null) return;
-    ctx.fillStyle = 'blue';
+  const { scaleX, scaleY } = getImageScale();
+  
+  // Animation du tracé du chemin
+  let currentIndex = 0;
+  
+  function drawPathSegment() {
+    if (currentIndex >= pathIds.length - 1) {
+      drawPathStations(pathIds);
+      return;
+    }
+    
+    const currentId = pathIds[currentIndex];
+    const nextId = pathIds[currentIndex + 1];
+    
+    const currentSt = window.__stations.find(s => s.id === currentId);
+    const nextSt = window.__stations.find(s => s.id === nextId);
+    
+    if (!currentSt || !nextSt || currentSt.x == null || nextSt.x == null) {
+      currentIndex++;
+      requestAnimationFrame(drawPathSegment);
+      return;
+    }
+    
+    const dx1 = currentSt.x * scaleX;
+    const dy1 = currentSt.y * scaleY;
+    const dx2 = nextSt.x * scaleX;
+    const dy2 = nextSt.y * scaleY;
+    
+    // Tracé avec gradient
+    const gradient = ctx.createLinearGradient(dx1, dy1, dx2, dy2);
+    gradient.addColorStop(0, '#f56565');
+    gradient.addColorStop(1, '#ed8936');
+    
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // Ombre portée du chemin
     ctx.beginPath();
-    ctx.arc(st.x, st.y, 5, 0, Math.PI*2);
-    ctx.fill();
-  });
+    ctx.moveTo(dx1 + 2, dy1 + 2);
+    ctx.lineTo(dx2 + 2, dy2 + 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    
+    // Chemin principal
+    ctx.beginPath();
+    ctx.moveTo(dx1, dy1);
+    ctx.lineTo(dx2, dy2);
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    
+    currentIndex++;
+    setTimeout(() => requestAnimationFrame(drawPathSegment), 100);
+  }
+  
+  function drawPathStations(pathIds) {
+    pathIds.forEach((id, index) => {
+      const st = window.__stations.find(s => s.id === id);
+      if (!st || st.x == null) return;
+      
+      const dx = st.x * scaleX;
+      const dy = st.y * scaleY;
+      
+      // Station de départ (verte)
+      if (index === 0) {
+        ctx.beginPath();
+        ctx.arc(dx, dy, 8, 0, Math.PI * 2);
+        ctx.fillStyle = '#48bb78';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // Icône de départ
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px FontAwesome';
+        ctx.textAlign = 'center';
+        ctx.fillText('▶', dx, dy + 4);
+      }
+      // Station d'arrivée (rouge)
+      else if (index === pathIds.length - 1) {
+        ctx.beginPath();
+        ctx.arc(dx, dy, 8, 0, Math.PI * 2);
+        ctx.fillStyle = '#f56565';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // Icône d'arrivée
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px FontAwesome';
+        ctx.textAlign = 'center';
+        ctx.fillText('🏁', dx, dy + 4);
+      }
+      // Stations intermédiaires (bleues)
+      else {
+        ctx.beginPath();
+        ctx.arc(dx, dy, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#667eea';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    });
+  }
+  
+  // Démarrer l'animation
+  drawPathSegment();
 }
 
 async function drawMST() {
   const canvas = document.getElementById('map');
   const ctx = canvas.getContext('2d');
-  // base map
-  drawMap();
+  const mstBtn = document.getElementById('draw-mst');
+  
+  // Animation de chargement
+  mstBtn.classList.add('loading');
+  mstBtn.disabled = true;
+  
   try {
-    const data = await (await fetch('/mst')).json();
-    ctx.strokeStyle = '#2a9d8f';
-    ctx.lineWidth = 2;
-    data.edges.forEach(edge => {
+    drawMap();
+    
+    const res = await fetch('/mst');
+    if (!res.ok) throw new Error('Erreur lors du calcul de l\'arbre couvrant');
+    
+    const data = await res.json();
+    const { scaleX, scaleY } = getImageScale();
+    
+    // Animation progressive du MST
+    let edgeIndex = 0;
+    
+    function drawMSTEdge() {
+      if (edgeIndex >= data.edges.length) {
+        showNotification('Arbre couvrant minimal généré !', 'success');
+        return;
+      }
+      
+      const edge = data.edges[edgeIndex];
       const a = window.__stations.find(s => s.id === edge.from);
       const b = window.__stations.find(s => s.id === edge.to);
-      if (!a || !b || a.x == null || b.x == null) return;
+      
+      if (!a || !b || a.x == null || b.x == null) {
+        edgeIndex++;
+        requestAnimationFrame(drawMSTEdge);
+        return;
+      }
+      
+      const dx1 = a.x * scaleX;
+      const dy1 = a.y * scaleY;
+      const dx2 = b.x * scaleX;
+      const dy2 = b.y * scaleY;
+      
+      // Gradient pour l'arbre couvrant
+      const gradient = ctx.createLinearGradient(dx1, dy1, dx2, dy2);
+      gradient.addColorStop(0, '#48bb78');
+      gradient.addColorStop(1, '#38a169');
+      
+      // Ombre portée
       ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      ctx.moveTo(dx1 + 1, dy1 + 1);
+      ctx.lineTo(dx2 + 1, dy2 + 1);
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = 4;
       ctx.stroke();
-    });
-  } catch (e) {
-    console.error('MST error', e);
+      
+      // Ligne principale
+      ctx.beginPath();
+      ctx.moveTo(dx1, dy1);
+      ctx.lineTo(dx2, dy2);
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      
+      edgeIndex++;
+      setTimeout(() => requestAnimationFrame(drawMSTEdge), 50);
+    }
+    
+    drawMSTEdge();
+    
+  } catch (error) {
+    console.error('Erreur MST:', error);
+    showNotification('Erreur lors du calcul de l\'arbre couvrant', 'error');
+  } finally {
+    mstBtn.classList.remove('loading');
+    mstBtn.disabled = false;
   }
 }
 
-document.getElementById('draw-mst').addEventListener('click', drawMST);
+function getImageScale() {
+  const img = document.getElementById('metro-bg');
+  if (!img || !img.naturalWidth) return {scaleX: 1, scaleY: 1};
+  const clientW = img.clientWidth;
+  const clientH = img.clientHeight;
+  const naturalW = img.naturalWidth;
+  const naturalH = img.naturalHeight;
+  const scaleX = clientW / naturalW;
+  const scaleY = clientH / naturalH;
+  return {scaleX, scaleY};
+}
 
+async function syncCanvasToImage() {
+  const img = document.getElementById('metro-bg');
+  const canvas = document.getElementById('map');
+  if (!img || !canvas) return;
+  // wait for image to load if needed
+  if (!img.complete) {
+    await new Promise((res) => { img.onload = res; img.onerror = res; });
+  }
+  const clientW = img.clientWidth;
+  const clientH = img.clientHeight;
+  const dpr = window.devicePixelRatio || 1;
+  // set CSS size
+  canvas.style.width = clientW + 'px';
+  canvas.style.height = clientH + 'px';
+  // set internal resolution for sharpness
+  canvas.width = Math.max(1, Math.floor(clientW * dpr));
+  canvas.height = Math.max(1, Math.floor(clientH * dpr));
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+// Fonction d'inversion des stations
+function swapStations() {
+  const startSelect = document.getElementById('start');
+  const endSelect = document.getElementById('end');
+  const swapBtn = document.getElementById('swapStations');
+  
+  // Animation du bouton
+  swapBtn.style.transform = 'scale(0.9) rotate(180deg)';
+  setTimeout(() => {
+    swapBtn.style.transform = 'scale(1) rotate(0deg)';
+  }, 150);
+  
+  // Échanger les valeurs
+  const startValue = startSelect.value;
+  const endValue = endSelect.value;
+  
+  startSelect.value = endValue;
+  endSelect.value = startValue;
+  
+  // Animation des sélecteurs
+  startSelect.style.transform = 'translateX(10px)';
+  endSelect.style.transform = 'translateX(-10px)';
+  
+  setTimeout(() => {
+    startSelect.style.transform = '';
+    endSelect.style.transform = '';
+  }, 200);
+  
+  // Notification si les deux champs étaient remplis
+  if (startValue && endValue) {
+    showNotification('Stations inversées !', 'success');
+  }
+}
+
+// Fonction de plein écran
+function toggleFullscreen() {
+  const mapCard = document.querySelector('.map-card');
+  const fullscreenBtn = document.getElementById('fullscreen');
+  const fullscreenIcon = fullscreenBtn.querySelector('i');
+  
+  if (!document.fullscreenElement) {
+    // Entrer en plein écran
+    mapCard.requestFullscreen().then(() => {
+      mapCard.classList.add('fullscreen-active');
+      fullscreenIcon.className = 'fas fa-compress';
+      fullscreenBtn.title = 'Quitter le plein écran';
+      showNotification('Mode plein écran activé', 'success');
+    }).catch(err => {
+      console.error('Erreur plein écran:', err);
+      showNotification('Impossible d\'activer le plein écran', 'error');
+    });
+  } else {
+    // Sortir du plein écran
+    document.exitFullscreen().then(() => {
+      mapCard.classList.remove('fullscreen-active');
+      fullscreenIcon.className = 'fas fa-expand';
+      fullscreenBtn.title = 'Plein écran';
+      showNotification('Plein écran désactivé', 'success');
+    }).catch(err => {
+      console.error('Erreur sortie plein écran:', err);
+    });
+  }
+}
+
+// Fonction de réinitialisation de la vue
+function resetMapView() {
+  drawMap();
+  hideResult();
+  showNotification('Vue de la carte réinitialisée', 'success');
+}
+
+// Event listeners
+document.getElementById('draw-mst').addEventListener('click', drawMST);
 document.getElementById('compute').addEventListener('click', computePath);
+document.getElementById('swapStations').addEventListener('click', swapStations);
+document.getElementById('fullscreen').addEventListener('click', toggleFullscreen);
+document.getElementById('resetView').addEventListener('click', resetMapView);
+// small debounce helper
+function debounce(fn, wait){
+  let t = null;
+  return (...args) => { clearTimeout(t); t = setTimeout(()=> fn(...args), wait); };
+}
+
+// ensure canvas syncs when the window resizes
+window.addEventListener('resize', debounce(async () => {
+  await syncCanvasToImage();
+  drawMap();
+}, 120));
+
+// ensure canvas syncs when the background image finishes (or reloads)
+const metroImg = document.getElementById('metro-bg');
+if (metroImg) {
+  metroImg.addEventListener('load', async () => { await syncCanvasToImage(); drawMap(); });
+}
+
+// Gestionnaire pour les changements de plein écran
+document.addEventListener('fullscreenchange', () => {
+  const mapCard = document.querySelector('.map-card');
+  const fullscreenBtn = document.getElementById('fullscreen');
+  const fullscreenIcon = fullscreenBtn.querySelector('i');
+  
+  if (!document.fullscreenElement) {
+    mapCard.classList.remove('fullscreen-active');
+    fullscreenIcon.className = 'fas fa-expand';
+    fullscreenBtn.title = 'Plein écran';
+    
+    // Redimensionner le canvas après la sortie du plein écran
+    setTimeout(async () => {
+      await syncCanvasToImage();
+      drawMap();
+    }, 100);
+  }
+});
+
+// Raccourcis clavier
+document.addEventListener('keydown', (e) => {
+  // Échap pour quitter le plein écran
+  if (e.key === 'Escape' && document.fullscreenElement) {
+    document.exitFullscreen();
+  }
+  
+  // Ctrl+Shift+S pour inverser les stations
+  if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+    e.preventDefault();
+    swapStations();
+  }
+  
+  // Ctrl+Enter pour calculer l'itinéraire
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    computePath();
+  }
+  
+  // F11 pour le plein écran (si supporté)
+  if (e.key === 'F11') {
+    e.preventDefault();
+    toggleFullscreen();
+  }
+});
+
+// Améliorer l'accessibilité avec les touches
+document.getElementById('start').addEventListener('keydown', (e) => {
+  if (e.key === 'Tab' && e.shiftKey === false) {
+    // Permettre la navigation naturelle
+  }
+});
+
+document.getElementById('end').addEventListener('keydown', (e) => {
+  if (e.key === 'Tab' && e.shiftKey === false) {
+    // Focus sur le bouton de calcul après avoir sélectionné la station d'arrivée
+    e.preventDefault();
+    document.getElementById('compute').focus();
+  }
+});
+
+// Initialisation
 loadStations();

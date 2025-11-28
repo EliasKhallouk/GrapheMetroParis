@@ -2,46 +2,179 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>Graphe Métro Paris</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🚇 Métro Paris - Calculateur d'itinéraires</title>
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
+  <div class="loading-screen" id="loadingScreen">
+    <div class="loading-content">
+      <div class="metro-logo">🚇</div>
+      <h2>Métro Paris</h2>
+      <div class="loading-spinner"></div>
+      <p>Chargement du réseau...</p>
+    </div>
+  </div>
+  
   <header class="app-header">
-    <div class="title">Graphe Métro Paris</div>
-    <div class="status" id="connexite"></div>
+    <div class="header-content">
+      <div class="title">
+        <i class="fas fa-subway"></i>
+        <span>Métro Paris</span>
+        <span class="subtitle">Calculateur d'itinéraires</span>
+      </div>
+      <div class="header-stats">
+        <div class="stat-item">
+          <i class="fas fa-network-wired"></i>
+          <span id="connexite" class="connexity-status">Connexité: —</span>
+        </div>
+      </div>
+    </div>
   </header>
   <main class="container">
-    <section id="controls" class="card">
-      <div class="grid">
-        <div class="field">
-          <label for="start">Départ</label>
-          <select id="start"></select>
+    <section class="controls-section">
+      <div class="card controls-card">
+        <div class="card-header">
+          <h2><i class="fas fa-route"></i> Calculer un itinéraire</h2>
+          <p>Trouvez le chemin le plus rapide entre deux stations</p>
         </div>
-        <div class="field">
-          <label for="end">Arrivée</label>
-          <select id="end"></select>
+        
+        <div class="controls-grid">
+          <div class="station-selector">
+            <label for="start">
+              <i class="fas fa-play-circle"></i>
+              Station de départ
+            </label>
+            <div class="select-wrapper">
+              <select id="start">
+                <option value="">Choisissez votre station de départ...</option>
+              </select>
+              <i class="fas fa-chevron-down select-arrow"></i>
+            </div>
+          </div>
+          
+          <div class="swap-button-container">
+            <button class="swap-btn" id="swapStations" title="Inverser départ et arrivée">
+              <i class="fas fa-exchange-alt"></i>
+            </button>
+          </div>
+          
+          <div class="station-selector">
+            <label for="end">
+              <i class="fas fa-flag-checkered"></i>
+              Station d'arrivée
+            </label>
+            <div class="select-wrapper">
+              <select id="end">
+                <option value="">Choisissez votre station d'arrivée...</option>
+              </select>
+              <i class="fas fa-chevron-down select-arrow"></i>
+            </div>
+          </div>
         </div>
-        <div class="actions">
-          <button class="btn primary" id="compute">Plus court chemin</button>
-          <button class="btn" id="draw-mst">Arbre couvrant (Prim)</button>
+        
+        <div class="action-buttons">
+          <button class="btn btn-primary" id="compute">
+            <i class="fas fa-route"></i>
+            <span>Calculer l'itinéraire</span>
+            <div class="btn-loader"></div>
+          </button>
+          <button class="btn btn-secondary" id="draw-mst">
+            <i class="fas fa-project-diagram"></i>
+            <span>Arbre couvrant minimal</span>
+          </button>
         </div>
       </div>
     </section>
 
-    <section id="result" class="card"></section>
-
-    <section class="card">
-      <div class="map-container">
-        <img id="metro-bg" src="/data/metrof_r.png" alt="Plan métro" width="950" height="1000" />
-        <canvas id="map" width="950" height="1000"></canvas>
+    <section id="result" class="result-section" style="display: none;">
+      <div class="card result-card">
+        <div class="result-header">
+          <h3><i class="fas fa-route"></i> Votre itinéraire</h3>
+          <button class="close-result" onclick="hideResult()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div id="resultContent" class="result-content"></div>
       </div>
-      <div class="legend">
-        <span class="dot black"></span> Stations
-        <span class="line red"></span> Chemin
-        <span class="line green"></span> Arbre couvrant (MST)
+    </section>
+
+    <section class="map-section">
+      <div class="card map-card">
+        <div class="card-header">
+          <h2><i class="fas fa-map"></i> Plan interactif du métro</h2>
+          <div class="map-controls">
+            <button class="btn btn-small" id="resetView" title="Réinitialiser la vue">
+              <i class="fas fa-home"></i>
+            </button>
+            <button class="btn btn-small" id="fullscreen" title="Plein écran">
+              <i class="fas fa-expand"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="map-container">
+          <div class="map-overlay">
+            <img id="metro-bg" src="/data/metrof_r.png" alt="Plan métro" width="950" height="1000" />
+            <canvas id="map" width="950" height="1000"></canvas>
+          </div>
+          
+          <div class="map-legend">
+            <h4><i class="fas fa-info-circle"></i> Légende</h4>
+            <div class="legend-items">
+              <div class="legend-item">
+                <span class="legend-dot station"></span>
+                <span>Stations de métro</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-line path"></span>
+                <span>Itinéraire calculé</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-line mst"></span>
+                <span>Arbre couvrant minimal</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   </main>
+  
+  <footer class="app-footer">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h4><i class="fas fa-info-circle"></i> À propos</h4>
+        <p>Application de calcul d'itinéraires pour le métro parisien utilisant la théorie des graphes.</p>
+      </div>
+      <div class="footer-section">
+        <h4><i class="fas fa-info-circle"></i> Auteur</h4>
+        <p>Elias KHALLOUK</p>
+        <p>Wissam SHAABAN</p>
+        <p>Yiannis LEBLANC</p>
+      </div>
+      <div class="footer-section">
+        <h4><i class="fas fa-chart-line"></i> Algorithmes</h4>
+        <ul>
+          <li>Dijkstra pour le plus court chemin</li>
+          <li>Prim pour l'arbre couvrant minimal</li>
+        </ul>
+      </div>
+      <div class="footer-section">
+        <h4><i class="fas fa-code"></i> Technologies</h4>
+        <ul>
+          <li>Python & Flask</li>
+          <li>JavaScript & Canvas</li>
+          <li>HTML5 & CSS3</li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  
   <script src="js/app.js"></script>
 </body>
 </html>
