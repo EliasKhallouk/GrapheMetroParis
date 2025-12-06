@@ -12,7 +12,7 @@ def index():
 
 @app.route('/stations')
 def stations():
-    # compute lines per station name
+    # Calculer les lignes par nom de station
     name_to_lines = {}
     for st in graph.stations.values():
         name_to_lines.setdefault(st.name, set()).add(str(st.line))
@@ -35,7 +35,7 @@ def station_detail(station_id: int):
     st = graph.stations.get(station_id)
     if not st:
         return jsonify({'error': 'not found'}), 404
-    # collect lines at same station name
+    # Rassembler les lignes portant le même nom de station
     lines = sorted({str(s.line) for s in graph.stations.values() if s.name == st.name})
     return jsonify({
         'id': st.id,
@@ -73,21 +73,21 @@ def path():
         total, path_ids = graph.shortest_path(start, end)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
-    # include line info for each station in path
+    # Inclure les informations de ligne pour chaque station du chemin
     stations_path = []
     for i in path_ids:
         s = graph.stations.get(i)
         if not s:
             stations_path.append({'id': i, 'name': None, 'line': None, 'lines_at_name': []})
             continue
-        # collect lines at same name
+    # Rassembler les lignes ayant le même nom
         lines = sorted({str(ss.line) for ss in graph.stations.values() if ss.name == s.name})
         stations_path.append({'id': s.id, 'name': s.name, 'line': s.line, 'lines_at_name': lines})
-    # Build formatted narrative in French
+    # Construire un texte narratif formaté en français
     def _terminus_for_line(line_code: str, avoid_name: str = None) -> str:
-        # Pick a terminus station name for a given line
+    # Choisir un nom de station terminus pour une ligne donnée
         term_names = [st.name for st in graph.stations.values() if str(st.line) == str(line_code) and st.terminus]
-        # Prefer a terminus different from avoid_name
+    # Préférer un terminus différent de la station à éviter
         for nm in term_names:
             if avoid_name is None or nm != avoid_name:
                 return nm
@@ -97,37 +97,37 @@ def path():
     if stations_path:
         start_station = stations_path[0]
         end_station = stations_path[-1]
-        # Opening
+    # Introduction
         narrative_lines.append(f"Vous êtes à {start_station['name']}.")
-        # Steps: initial take line, then changes whenever line differs from previous
-        # Determine initial direction
+    # Étapes : prendre d'abord la ligne, puis indiquer les correspondances lorsqu'on change de ligne
+    # Déterminer la direction initiale
         initial_line = start_station.get('line')
         initial_direction = _terminus_for_line(initial_line, avoid_name=start_station['name'])
         if initial_line:
             narrative_lines.append(f"- Prenez la ligne {initial_line} direction {initial_direction}.")
-        # Traverse path to detect line changes
+    # Parcourir le chemin pour détecter les changements de ligne
         prev_line = initial_line
         for idx in range(1, len(stations_path)):
             st = stations_path[idx]
             cur_line = st.get('line')
-            # When line changes at this station, instruct to change here and take new line
+            # Lorsque la ligne change à cette station, indiquer la correspondance et la nouvelle ligne
             if cur_line and prev_line and str(cur_line) != str(prev_line):
                 direction = _terminus_for_line(cur_line, avoid_name=st['name'])
                 narrative_lines.append(f"- A {st['name']}, changez et prenez la ligne {cur_line} direction {direction}.")
             prev_line = cur_line or prev_line
-        # Arrival estimate
+    # Estimation d'arrivée
         minutes = max(1, round(total / 60))
         narrative_lines.append(f"- Vous devriez arriver à {end_station['name']} dans environ {minutes} minutes")
     narrative = "\n".join(narrative_lines)
 
     return jsonify({'total_time_seconds': total, 'path': path_ids, 'stations': stations_path, 'narrative': narrative})
 
-# Simple health endpoint
+# Point de santé simple
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok', 'stations': len(graph.stations)})
 
-# Serve assets from Data folder (e.g., metrof_r.png)
+# Servir les ressources depuis le dossier Data (ex: metrof_r.png)
 @app.route('/data/<path:filename>')
 def data_assets(filename: str):
     data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Data'))

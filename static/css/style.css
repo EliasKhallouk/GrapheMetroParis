@@ -22,7 +22,7 @@
   --border-radius-lg: 16px;
 }
 
-/* Reset et base */
+/* Réinitialisation et base */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -83,7 +83,7 @@ body {
   100% { transform: rotate(360deg); }
 }
 
-/* Header */
+/* En-tête */
 .app-header {
   background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%);
   backdrop-filter: blur(20px);
@@ -144,7 +144,7 @@ body {
   color: var(--primary-color);
 }
 
-/* Container et layout */
+/* Conteneur et disposition */
 .container {
   max-width: 1200px;
   margin: 0 auto;
@@ -152,7 +152,7 @@ body {
   min-height: calc(100vh - 200px);
 }
 
-/* Cards */
+/* Cartes */
 .card {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
@@ -193,7 +193,7 @@ body {
   margin: 0;
 }
 
-/* Controls Section */
+/* Section des contrôles */
 .controls-section {
   margin-bottom: 2rem;
 }
@@ -301,7 +301,7 @@ body {
   justify-content: center;
 }
 
-/* Buttons */
+/* Boutons */
 .btn {
   display: flex;
   align-items: center;
@@ -377,7 +377,7 @@ body {
   opacity: 0.7;
 }
 
-/* Result Section */
+/* Section des résultats */
 .result-section {
   margin-bottom: 2rem;
   animation: slideIn 0.5s ease-out;

@@ -14,12 +14,12 @@ Data/
   metro.txt
   pospoints.txt
 app/
-  graph.py        # parsing + structure + Bellman Ford
-  api.py          # endpoints Flask
+  graph.py        # analyse + structure + Bellman-Ford
+  api.py          # points de terminaison Flask
 static/
   index.html      # interface web
   css/style.css
-  js/app.js
+  js/app.js       # logique front
 run.py             # point d'entrée serveur
 requirements.txt   # dépendances (Flask)
 README.md
@@ -50,16 +50,16 @@ Une fois le serveur lancé, ouvrez simplement :
 http://127.0.0.1:5000/
 ```
 Interface disponible :
-- Sélection de station de départ / arrivée (menu déroulant trié par ID).
+- Sélection de station de départ / arrivée (menu déroulant trié par nom).
 - Bouton pour calculer le plus court chemin.
 - Affichage de la liste des stations sur le chemin et du temps total.
-- Visualisation: canevas avec les stations (points) et le chemin surligné en rouge / bleu.
+- Visualisation : canevas avec les stations (points) et le chemin surligné.
 
 ## Endpoints API
 - `GET /health` : statut rapide.
 - `GET /stations` : liste des stations.
 - `GET /station/<id>` : détails d'une station (voisins inclus).
-- `GET /graph` : dump JSON du graphe (stations + arrêtes).
+- `GET /graph` : export JSON du graphe (stations + arêtes).
 - `GET /path?start=<id>&end=<id>` : plus court chemin (temps + séquence).
 
 ## Exemple d'appel
@@ -76,15 +76,15 @@ Réponse type :
 ```
 
 ## Détails d'implémentation
-- Parsing :
-  - Lignes commençant par `V` définissent des stations.
-  - Lignes `E` définissent des arrêtes bidirectionnelles avec temps en secondes.
+- Analyse :
+  - Les lignes commençant par `V` définissent des stations.
+  - Les lignes `E` définissent des arêtes bidirectionnelles avec temps en secondes.
   - Les noms dans `pospoints.txt` utilisent `@` comme séparateur d'espaces, normalisés lors du chargement.
-- Algorithme : Bellman Ford classique (heapq) pour minimiser la somme des temps.
-- Les coordonnées ne sont pas disponibles pour toutes les stations; seules celles trouvées sont tracées.
+- Algorithme : Bellman-Ford classique pour minimiser la somme des temps.
+- Les coordonnées ne sont pas disponibles pour toutes les stations ; seules celles trouvées sont tracées.
 
 ## Hypothèses / Simplifications
-- Le PDF original précise le format; l'interpréteur actuel suppose que le 4ème bloc après le nom (`True`/`False`) est le flag terminus et le dernier entier le numéro de branche.
+- Le PDF original précise le format ; l'interpréteur actuel suppose que le 4ème bloc après le nom (`True`/`False`) est le drapeau de terminus et le dernier entier le numéro de branche.
 - Les correspondances (temps de transfert) sont traitées comme des arrêtes normales.
 - Pas de différenciation de lignes dans le calcul de coût (juste le temps).
 - Aucun test automatisé ni optimisation avancée (conforme à la consigne de simplicité).

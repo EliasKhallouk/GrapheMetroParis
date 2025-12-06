@@ -33,28 +33,28 @@ class MetroGraph:
                 if not line or line.startswith('#') or line.startswith('-'):
                     continue
                 if line.startswith('V'):
-                    # Expected data lines start with: V <4-digit id> <name> ;<line> ;<True|False> <branch int>
-                    # Some description lines also start with V but second token is not numeric.
+                    # Les lignes de données attendues commencent par : V <id à 4 chiffres> <nom> ;<ligne> ;<True|False> <branche int>
+                    # Certaines lignes descriptives commencent aussi par V mais le second jeton n'est pas numérique.
                     try:
-                        after_v = line[1:].strip()  # remove leading 'V'
+                        after_v = line[1:].strip()  # retirer le 'V' initial
                         first_space = after_v.find(' ')
                         if first_space == -1:
                             continue
                         id_token = after_v[:first_space]
-                        if not id_token.isdigit():  # skip header/descriptive lines
+                        if not id_token.isdigit():  # ignorer les en-têtes/descriptions
                             continue
                         num = int(id_token)
                         rest = after_v[first_space+1:]
-                        # Split by ';' to isolate name / line / terminus flag
+                        # Diviser par ';' pour isoler nom / ligne / indicateur de terminus
                         segs = [s.strip() for s in rest.split(';')]
                         if len(segs) < 3:
                             continue
                         name = segs[0].replace('@', ' ')
                         line_code = segs[1]
                         terminus_flag = segs[2].lower().startswith('true')
-                        # branch int may appear after the terminus flag segment or as last token in line
+                        # La branche (entier) peut apparaître après l'indicateur de terminus ou comme dernier jeton de la ligne
                         branch = 0
-                        # Attempt to extract an integer at end of line
+                        # Essayer d'extraire un entier en fin de ligne
                         tail_tokens = segs[-1].split()
                         for tok in reversed(tail_tokens):
                             if tok.isdigit():
@@ -66,7 +66,7 @@ class MetroGraph:
                     except Exception:
                         continue
                 elif line.startswith('E'):
-                    # Format: E a b time
+                    # Format : E a b temps
                     try:
                         _, a_str, b_str, t_str = line.split()
                         a = int(a_str)
@@ -94,21 +94,21 @@ class MetroGraph:
                     name_to_coords.setdefault(name, (x, y))
                 except ValueError:
                     continue
-        # assign coordinates by matching station name
+    # Assigner les coordonnées en faisant correspondre le nom de station
         for st in self.stations.values():
             if st.name in name_to_coords:
                 st.x, st.y = name_to_coords[st.name]
 
     def shortest_path(self, start: int, end: int) -> Tuple[int, List[int]]:
-        """Bellman-Ford returning (total_time, path station ids)."""
+        """Bellman-Ford retournant (temps total, liste des id des stations du chemin)."""
         if start not in self.stations or end not in self.stations:
             raise ValueError('Invalid station id')
-        # initialize distances
+    # Initialiser les distances
         INF = 10**18
         dist: Dict[int, int] = {node: INF for node in self.stations.keys()}
         prev: Dict[int, int] = {}
         dist[start] = 0
-        # collect edges (undirected => iterate unique pairs)
+    # Collecter les arêtes (non orienté => itérer les paires uniques)
         edges: List[Tuple[int, int, int]] = []
         seen_pairs = set()
         for u, lst in self.adj.items():
@@ -117,10 +117,10 @@ class MetroGraph:
                 if key in seen_pairs:
                     continue
                 seen_pairs.add(key)
-                # For Bellman-Ford on undirected graph, relax both directions
+                # Pour Bellman-Ford sur un graphe non orienté, relâcher dans les deux sens
                 edges.append((u, v, w))
                 edges.append((v, u, w))
-        # relax |V|-1 times
+    # Relâcher |V|-1 fois
         n = len(self.stations)
         for _ in range(n - 1):
             updated = False
@@ -133,7 +133,7 @@ class MetroGraph:
                 break
         if dist[end] == INF:
             raise ValueError('No path found')
-        # reconstruct path
+    # Reconstruire le chemin
         path: List[int] = []
         cur = end
         while cur != start:
@@ -160,14 +160,14 @@ class MetroGraph:
             ],
             'edges': [
                 {'from': a, 'to': b, 'time': t}
-                for a, lst in self.adj.items() for b, t in lst if a < b  # avoid duplicates
+                for a, lst in self.adj.items() for b, t in lst if a < b  # éviter les doublons
             ]
         }
 
     def is_connected(self) -> bool:
         if not self.stations:
             return True
-        # BFS/DFS from any node
+    # Parcours en largeur/profondeur depuis n'importe quel nœud
         start = next(iter(self.stations.keys()))
         seen = set([start])
         stack = [start]
@@ -180,17 +180,17 @@ class MetroGraph:
         return len(seen) == len(self.stations)
 
     def prim_mst(self) -> List[Tuple[int, int, int]]:
-        """Return MST edges as list of (u, v, weight) using Prim's algorithm.
-        Assumes graph is connected; if not, builds an MST per component and returns union (a forest).
+        """Retourner les arêtes de l'ACM sous forme de (u, v, poids) avec l'algorithme de Prim.
+        Suppose que le graphe est connexe ; sinon, construit un ACM par composant et retourne l'union (une forêt).
         """
         remaining = set(self.stations.keys())
         mst_edges: List[Tuple[int, int, int]] = []
         while remaining:
-            # start a new component
+            # Démarrer un nouveau composant
             start = next(iter(remaining))
             remaining.remove(start)
             in_tree = {start}
-            # min-heap of edges crossing cut: (w, u, v)
+            # Tas min d'arêtes traversant la coupe : (w, u, v)
             heap: List[Tuple[int, int, int]] = []
             for v, w in self.adj.get(start, []):
                 heapq.heappush(heap, (w, start, v))

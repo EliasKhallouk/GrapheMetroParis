@@ -1,4 +1,4 @@
-/* Responsive Design */
+/* Design réactif */
 @media (max-width: 1024px) {
   .container {
     padding: 1rem;
@@ -104,7 +104,7 @@ select:focus {
   outline-offset: 2px;
 }
 
-/* Scrollbar personnalisée */
+/* Barre de défilement personnalisée */
 ::-webkit-scrollbar {
   width: 8px;
 }
