@@ -83,7 +83,44 @@ def path():
         # collect lines at same name
         lines = sorted({str(ss.line) for ss in graph.stations.values() if ss.name == s.name})
         stations_path.append({'id': s.id, 'name': s.name, 'line': s.line, 'lines_at_name': lines})
-    return jsonify({'total_time_seconds': total, 'path': path_ids, 'stations': stations_path})
+    # Build formatted narrative in French
+    def _terminus_for_line(line_code: str, avoid_name: str = None) -> str:
+        # Pick a terminus station name for a given line
+        term_names = [st.name for st in graph.stations.values() if str(st.line) == str(line_code) and st.terminus]
+        # Prefer a terminus different from avoid_name
+        for nm in term_names:
+            if avoid_name is None or nm != avoid_name:
+                return nm
+        return term_names[0] if term_names else ''
+
+    narrative_lines = []
+    if stations_path:
+        start_station = stations_path[0]
+        end_station = stations_path[-1]
+        # Opening
+        narrative_lines.append(f"Vous êtes à {start_station['name']}.")
+        # Steps: initial take line, then changes whenever line differs from previous
+        # Determine initial direction
+        initial_line = start_station.get('line')
+        initial_direction = _terminus_for_line(initial_line, avoid_name=start_station['name'])
+        if initial_line:
+            narrative_lines.append(f"- Prenez la ligne {initial_line} direction {initial_direction}.")
+        # Traverse path to detect line changes
+        prev_line = initial_line
+        for idx in range(1, len(stations_path)):
+            st = stations_path[idx]
+            cur_line = st.get('line')
+            # When line changes at this station, instruct to change here and take new line
+            if cur_line and prev_line and str(cur_line) != str(prev_line):
+                direction = _terminus_for_line(cur_line, avoid_name=st['name'])
+                narrative_lines.append(f"- A {st['name']}, changez et prenez la ligne {cur_line} direction {direction}.")
+            prev_line = cur_line or prev_line
+        # Arrival estimate
+        minutes = max(1, round(total / 60))
+        narrative_lines.append(f"- Vous devriez arriver à {end_station['name']} dans environ {minutes} minutes")
+    narrative = "\n".join(narrative_lines)
+
+    return jsonify({'total_time_seconds': total, 'path': path_ids, 'stations': stations_path, 'narrative': narrative})
 
 # Simple health endpoint
 @app.route('/health')

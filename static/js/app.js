@@ -145,6 +145,9 @@ function displayResult(data) {
   const fmt = formatDuration(data.total_time_seconds);
   const distance = data.stations.length - 1; // Nombre de segments
   
+  // Narrative text (if provided by backend)
+  const narrative = data.narrative ? `<div class="narrative"><pre>${escapeHtml(data.narrative)}</pre></div>` : '';
+
   resultContent.innerHTML = `
     <div class="journey-summary">
       <div class="summary-item">
@@ -160,6 +163,8 @@ function displayResult(data) {
         <span class="label">Arrêts</span>
       </div>
     </div>
+    
+    ${narrative}
     
     <h4><i class="fas fa-list-ol"></i> Itinéraire détaillé</h4>
     <ol class="stations-list">
@@ -177,6 +182,15 @@ function displayResult(data) {
   
   resultSection.style.display = 'block';
   setTimeout(() => resultSection.scrollIntoView({ behavior: 'smooth' }), 100);
+}
+
+// Simple HTML escape for narrative pre block
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function hideResult() {
