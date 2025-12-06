@@ -5,8 +5,9 @@ Projet simple en Python + Flask + interface web minimale pour explorer le graphe
 ## Objectifs
 - Charger les stations et les temps de parcours entre elles.
 - Visualiser les stations sur un canevas (positions approximatives fournies).
-- Obtenir le plus court chemin (en secondes) entre deux stations via Bellman Ford.
-- Fournir des endpoints API simples.
+- Obtenir le plus court chemin (en secondes) entre deux stations via Bellman-Ford.
+- Fournir des endpoints API simples et un narratif d'itinéraire en français.
+- Calculer et afficher l'ACPM (arbre couvrant de poids minimal) et son poids total.
 
 ## Arborescence
 ```
@@ -38,8 +39,20 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Lancer l'API (serveur Flask)
+## Lancer l'application
+Deux options:
+
+1) Script de lancement (recommandé):
 ```bash
+chmod +x run.sh
+./run.sh
+```
+
+2) Manuellement:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 python run.py
 ```
 Par défaut le serveur écoute sur `http://127.0.0.1:5000`.
@@ -52,15 +65,17 @@ http://127.0.0.1:5000/
 Interface disponible :
 - Sélection de station de départ / arrivée (menu déroulant trié par nom).
 - Bouton pour calculer le plus court chemin.
-- Affichage de la liste des stations sur le chemin et du temps total.
-- Visualisation : canevas avec les stations (points) et le chemin surligné.
+- Affichage de la liste des stations sur le chemin, du temps total, et d'un texte narratif (prise de ligne, correspondances, temps estimé).
+- Visualisation : canevas avec les stations (points), le tracé du chemin et l'ACPM.
+- Affichage du poids total de l'ACPM (notification et dans l'entête de la carte).
 
 ## Endpoints API
 - `GET /health` : statut rapide.
 - `GET /stations` : liste des stations.
 - `GET /station/<id>` : détails d'une station (voisins inclus).
 - `GET /graph` : export JSON du graphe (stations + arêtes).
-- `GET /path?start=<id>&end=<id>` : plus court chemin (temps + séquence).
+- `GET /path?start=<id>&end=<id>` : plus court chemin (temps + séquence + narratif).
+- `GET /mst` : arêtes de l'ACPM + poids total (`total_weight`).
 
 ## Exemple d'appel
 ```bash
@@ -80,7 +95,9 @@ Réponse type :
   - Les lignes commençant par `V` définissent des stations.
   - Les lignes `E` définissent des arêtes bidirectionnelles avec temps en secondes.
   - Les noms dans `pospoints.txt` utilisent `@` comme séparateur d'espaces, normalisés lors du chargement.
-- Algorithme : Bellman-Ford classique pour minimiser la somme des temps.
+- Algorithmes :
+  - Bellman-Ford classique pour minimiser la somme des temps.
+  - Prim pour l'ACPM (retour des arêtes et du poids total).
 - Les coordonnées ne sont pas disponibles pour toutes les stations ; seules celles trouvées sont tracées.
 
 ## Hypothèses / Simplifications
@@ -96,10 +113,10 @@ Réponse type :
 - Mise en cache des chemins fréquents.
 
 ## Utilisation rapide
-1. Lancer `python run.py`.
+1. Lancer `./run.sh`.
 2. Ouvrir le navigateur sur `http://127.0.0.1:5000`.
 3. Choisir départ / arrivée.
-4. Cliquer sur "Calculer plus court chemin".
+4. Cliquer sur "Calculer l'itinéraire" et éventuellement "Arbre couvrant minimal" pour visualiser l'ACPM.
 
 ## Licence
 Usage académique / projet étudiant. Données de démonstration.
