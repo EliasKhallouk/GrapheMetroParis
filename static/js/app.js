@@ -389,9 +389,25 @@ async function drawMST() {
     const res = await fetch('/mst');
     if (!res.ok) throw new Error('Erreur lors du calcul de l\'arbre couvrant');
     
-    const data = await res.json();
+  const data = await res.json();
     const { scaleX, scaleY } = getImageScale();
     
+    // Afficher le poids total de l'ACPM
+    if (typeof data.total_weight === 'number') {
+      showNotification(`Poids total de l'ACPM: ${data.total_weight}`, 'info');
+      const header = document.querySelector('.map-card .card-header h2');
+      if (header) {
+        const existing = header.querySelector('.mst-weight');
+        const span = existing || document.createElement('span');
+        span.className = 'mst-weight';
+        span.style.marginLeft = '0.75rem';
+        span.style.fontSize = '0.9rem';
+        span.style.color = '#4a5568';
+        span.textContent = `(Poids ACM: ${data.total_weight})`;
+        if (!existing) header.appendChild(span);
+      }
+    }
+
     // Animation progressive du MST
     let edgeIndex = 0;
     

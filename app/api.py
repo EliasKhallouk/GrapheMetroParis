@@ -60,7 +60,12 @@ def connected():
 @app.route('/mst')
 def mst():
     edges = graph.prim_mst()
-    return jsonify({'edges': [{'from': u, 'to': v, 'time': w} for u, v, w in edges], 'count': len(edges)})
+    total_weight = sum(w for _, _, w in edges)
+    return jsonify({
+        'edges': [{'from': u, 'to': v, 'time': w} for u, v, w in edges],
+        'count': len(edges),
+        'total_weight': total_weight
+    })
 
 @app.route('/path')
 def path():
