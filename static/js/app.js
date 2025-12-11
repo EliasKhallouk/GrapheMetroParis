@@ -98,8 +98,9 @@ async function loadStations() {
 }
 
 async function computePath() {
-  const start = document.getElementById('start').value;
-  const end = document.getElementById('end').value;
+  // Sync selections from internal selected IDs if present
+  const start = (window.__selectedStartId && !document.getElementById('start').value) ? window.__selectedStartId : document.getElementById('start').value;
+  const end = (window.__selectedEndId && !document.getElementById('end').value) ? window.__selectedEndId : document.getElementById('end').value;
   const computeBtn = document.getElementById('compute');
   
   if (!start || !end) {
@@ -250,6 +251,126 @@ function drawMap() {
       ctx.fill();
     }
   });
+
+  // Après avoir dessiné les stations de base, dessiner les marqueurs de sélection si présent
+  drawMarkers();
+}
+
+// Dessine les marqueurs de départ/arrivée sélectionnés (après drawMap)
+function drawMarkers() {
+  const canvas = document.getElementById('map');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const { scaleX, scaleY } = getImageScale();
+
+  const startId = window.__selectedStartId || null;
+  const endId = window.__selectedEndId || null;
+
+  [startId, endId].forEach(id => {
+    if (!id) return;
+    const st = window.__stations.find(s => s.id === Number(id));
+    if (!st || st.x == null) return;
+    const dx = st.x * scaleX;
+    const dy = st.y * scaleY;
+    ctx.beginPath();
+    if (id === startId && id === endId) {
+      // same station: draw a special marker
+      ctx.arc(dx, dy, 10, 0, Math.PI * 2);
+      ctx.fillStyle = '#f6ad55';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    } else if (id === startId) {
+      ctx.arc(dx, dy, 8, 0, Math.PI * 2);
+      ctx.fillStyle = '#48bb78'; // green
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    } else if (id === endId) {
+      ctx.arc(dx, dy, 8, 0, Math.PI * 2);
+      ctx.fillStyle = '#f56565'; // red
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  });
+}
+
+// Trouve la station la plus proche d'un clic (en coordonnées d'affichage)
+function findNearestStation(clickX, clickY, maxDistance) {
+  const stations = window.__stations || [];
+  const { scaleX, scaleY } = getImageScale();
+  // Rayon par défaut: augmenter pour faciliter le clic
+  if (typeof maxDistance !== 'number' || !isFinite(maxDistance)) {
+    // Adapter légèrement au zoom: base 20px, ajustée par le ratio moyen de l'image
+    const avgScale = (scaleX + scaleY) / 2 || 1;
+    maxDistance = Math.max(16, Math.round(20 * avgScale));
+  }
+  let best = null;
+  let bestDist = Infinity;
+  stations.forEach(st => {
+    if (st.x == null || st.y == null) return;
+    const dx = st.x * scaleX;
+    const dy = st.y * scaleY;
+    const d = Math.hypot(dx - clickX, dy - clickY);
+    if (d < bestDist) {
+      bestDist = d;
+      best = st;
+    }
+  });
+  if (bestDist <= maxDistance) return best;
+  return null;
+}
+
+// Définit la station sélectionnée et synchronise les selects
+function setSelectedStation(id, type) {
+  // type: 'start' or 'end'
+  if (!id) return;
+  const select = document.getElementById(type === 'start' ? 'start' : 'end');
+  if (select) select.value = id;
+  if (type === 'start') window.__selectedStartId = Number(id);
+  else window.__selectedEndId = Number(id);
+  drawMap();
+  const name = (window.__stations || []).find(s => s.id === Number(id))?.name || id;
+  showNotification(`${type === 'start' ? 'Départ' : 'Arrivée'} défini(e): ${name}`, 'info');
+  // Si les deux sont définis, lancer le calcul automatiquement
+  if (window.__selectedStartId && window.__selectedEndId) {
+    // synchroniser selects sont déjà mis à jour
+    // attendre un petit temps pour laisser l'UI se stabiliser
+    setTimeout(() => computePath(), 200);
+  }
+}
+
+// Gestion du clic sur la carte pour sélectionner station
+function onMapClick(e) {
+  const canvas = document.getElementById('map');
+  const rect = canvas.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const clickY = e.clientY - rect.top;
+  const station = findNearestStation(clickX, clickY, 24);
+  if (!station) {
+    showNotification('Aucune station proche du clic', 'error');
+    return;
+  }
+  // Si aucun départ, définir départ ; sinon si départ défini mais pas arrivée, définir arrivée ; sinon remplacer départ
+  if (!window.__selectedStartId) {
+    setSelectedStation(station.id, 'start');
+  } else if (!window.__selectedEndId) {
+    // éviter de choisir la même station pour arrivée
+    if (Number(window.__selectedStartId) === Number(station.id)) {
+      showNotification('La station sélectionnée est déjà le départ', 'error');
+      return;
+    }
+    setSelectedStation(station.id, 'end');
+  } else {
+    // les deux sont définis : réinitialiser le départ au clic et effacer arrivée
+    window.__selectedEndId = null;
+    setSelectedStation(station.id, 'start');
+    const endSelect = document.getElementById('end'); if (endSelect) endSelect.value = '';
+  }
 }
 
 function highlightPath(pathIds) {
@@ -289,11 +410,11 @@ function highlightPath(pathIds) {
     
     // Tracé avec gradient
     const gradient = ctx.createLinearGradient(dx1, dy1, dx2, dy2);
-    gradient.addColorStop(0, '#f56565');
-    gradient.addColorStop(1, '#ed8936');
+    gradient.addColorStop(0, '#ff0000');
+    gradient.addColorStop(1, '#0048ff');
     
     ctx.strokeStyle = gradient;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 9;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
@@ -534,6 +655,10 @@ function swapStations() {
   if (startValue && endValue) {
     showNotification('Stations inversées !', 'success');
   }
+  // Mettre à jour les sélections internes
+  window.__selectedStartId = Number(document.getElementById('start').value) || null;
+  window.__selectedEndId = Number(document.getElementById('end').value) || null;
+  drawMap();
 }
 
 // Fonction de plein écran
@@ -579,6 +704,11 @@ document.getElementById('compute').addEventListener('click', computePath);
 document.getElementById('swapStations').addEventListener('click', swapStations);
 document.getElementById('fullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('resetView').addEventListener('click', resetMapView);
+// Clic sur la carte pour sélectionner les stations
+const canvasEl = document.getElementById('map');
+if (canvasEl) {
+  canvasEl.addEventListener('click', onMapClick);
+}
 // small debounce helper
 function debounce(fn, wait){
   let t = null;
